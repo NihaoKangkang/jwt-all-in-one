@@ -99,9 +99,11 @@ function renderRows() {
 function message(text, error = false) { $('messages').append(make('div', error ? 'message error' : 'message', text)); }
 for (const id of fields) $(id).addEventListener('input', invalidate);
 $('sign-with-key').addEventListener('change', invalidate);
+$('signing-format').addEventListener('change', invalidate);
 $('fuzz-part').addEventListener('change', invalidate);
 $('jwt').addEventListener('input', () => { stopDictionary(); $('verification-result').textContent = ''; $('dictionary-result').textContent = ''; });
 $('verification-key').addEventListener('input', () => { $('verification-result').textContent = ''; });
+$('verification-format').addEventListener('change', () => { $('verification-result').textContent = ''; });
 $('dictionary').addEventListener('input', () => { stopDictionary(); $('dictionary-result').textContent = ''; });
 $('filter').addEventListener('input', renderRows);
 for (const [id, checked] of [['select-all', true], ['select-none', false]]) $(id).addEventListener('click', () => {
@@ -128,6 +130,7 @@ $('generate').addEventListener('click', async () => {
       categories: selected(), targetPublicKey: $('public-key').value, jwksUrl: $('jwks-url').value,
       certificateUrl: $('certificate-url').value, secrets: $('secrets').value, customPayload: $('custom-payload').value,
       customHeader: $('custom-header').value, signingKey: $('signing-key').value, signWithKey: $('sign-with-key').checked,
+      signingFormat: $('signing-format').value,
       fuzzPart: $('fuzz-part').value, fuzzField: $('fuzz-field').value, fuzzValues: $('fuzz-values').value,
     });
     if (generation !== version) return;
@@ -174,12 +177,14 @@ $('language').addEventListener('click', () => {
   }
 });
 $('verify').addEventListener('click', async () => {
-  const token = $('jwt').value, material = $('verification-key').value;
+  const token = $('jwt').value, material = $('verification-key').value, format = $('verification-format').value;
   try {
-    const result = await verifyToken(token, material);
-    if ($('jwt').value !== token || $('verification-key').value !== material) return;
+    const result = await verifyToken(token, material, { format });
+    if ($('jwt').value !== token || $('verification-key').value !== material || $('verification-format').value !== format) return;
     $('verification-result').textContent = `${result.valid ? '签名有效' : '签名无效'} · ${result.invalidTimeClaims ? '时间声明无效' : result.expired ? '已过期' : result.notYetValid ? '尚未生效' : '时间范围有效'}`;
-  } catch (error) { $('verification-result').textContent = error.message; }
+  } catch (error) {
+    if ($('jwt').value === token && $('verification-key').value === material && $('verification-format').value === format) $('verification-result').textContent = error.message;
+  }
 });
 $('reconstruct').addEventListener('click', async () => {
   try {

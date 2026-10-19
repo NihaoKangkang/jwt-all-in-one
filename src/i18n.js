@@ -1,5 +1,6 @@
 // Translate interface text only; never transform JWTs, JSON editors, keys, or curl input.
 const dictionary = {
+  '密钥输入格式': 'Key input format', '按算法自动识别（HMAC 为原始 secret）': 'Auto by algorithm (HMAC is a literal secret)',
   '时间声明无效': 'Invalid time claims',
   '自定义字段 Fuzz': 'Custom field fuzzing', '逐行替换 Header / Payload 字段，组合已启用的签名方式。': 'Replace header / payload fields line by line, combining enabled signature methods.',
   'Fuzz 字段位置': 'Fuzz field location', 'Fuzz 字段路径': 'Fuzz field path', '例如 role 或 user.role': 'For example role or user.role', 'Fuzz 值': 'Fuzz values', '每行 JSON 值或字符串，最多 50 项': 'One JSON value or string per line, up to 50',

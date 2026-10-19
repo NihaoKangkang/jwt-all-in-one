@@ -53,6 +53,27 @@ test('offline dictionary finds actual original signing secret, empty key, and no
   }
   await assert.rejects(checkDictionary(assemble({ alg: 'RS256' }, {}, ''), []), /HS256/);
 });
+test('JSON-looking dictionary entries are always literal HMAC secrets, not JWK objects', async () => {
+  const octJwk = JSON.stringify({ kty: 'oct', k: 'dW5pcXVlLXNlY3JldA', alg: 'HS256' });
+  for (const alg of ['HS256', 'HS384', 'HS512']) {
+    for (const secret of ['{broken', '{"secret":"literal-json"}', octJwk]) {
+      const token = await signToken({ alg }, {}, secret);
+      assert.equal((await verifyToken(token, secret)).valid, true);
+      assert.equal((await checkDictionary(token, ['{invalid-json', secret])).secret, secret);
+    }
+    const token = await signToken({ alg }, {}, 'unique-secret');
+    const found = await checkDictionary(token, ['{invalid-json', octJwk, 'unique-secret']);
+    assert.equal(found.secret, 'unique-secret');
+    assert.equal(found.checked, 4);
+  }
+});
+test('HMAC JWK input is supported only with explicit JWK format', async () => {
+  const material = JSON.stringify({ kty: 'oct', k: 'dW5pcXVlLXNlY3JldA', alg: 'HS256' });
+  const token = await signToken({ alg: 'HS256' }, {}, material, { format: 'jwk' });
+  assert((await verifyToken(token, 'unique-secret')).valid);
+  assert((await verifyToken(token, material, { format: 'jwk' })).valid);
+  assert.equal((await verifyToken(token, material)).valid, false);
+});
 test('temporal checks distinguish expired and future nbf from signature validity', async () => {
   const token = await signToken({ alg: 'HS256' }, { exp: 0, nbf: 4102444800 }, 'key');
   assert.deepEqual(await verifyToken(token, 'key'), { valid: true, expired: true, notYetValid: true, invalidTimeClaims: false });

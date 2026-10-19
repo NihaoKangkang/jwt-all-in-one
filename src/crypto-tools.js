@@ -18,36 +18,41 @@ function resolveJwk(material, header) {
   if (matches.length !== 1) throw new Error('JWKS must identify exactly one matching key (kid / alg).');
   return matches[0];
 }
-async function importMaterial(header, material, usage, extractable = false) {
+function isJwkMaterial(header, material, format = 'auto') {
+  if (!['auto', 'raw', 'jwk'].includes(format)) throw new Error('Unsupported key input format.');
+  // An HMAC secret is arbitrary text, including JSON. Only parse it as JWK on explicit opt-in.
+  return format === 'jwk' || (format === 'auto' && !header.alg.startsWith('HS') && material.trim().startsWith('{'));
+}
+async function importMaterial(header, material, usage, extractable = false, format = 'auto') {
   const settings = config(header.alg);
-  if (material.trim().startsWith('{')) return crypto.subtle.importKey('jwk', resolveJwk(material, header), settings.import, extractable, [usage]);
+  if (isJwkMaterial(header, material, format)) return crypto.subtle.importKey('jwk', resolveJwk(material, header), settings.import, extractable, [usage]);
   if (header.alg.startsWith('HS')) return crypto.subtle.importKey('raw', bytes(material), settings.import, extractable, [usage]);
   const type = usage === 'sign' ? 'PRIVATE' : 'PUBLIC';
   if (!material.includes(`-----BEGIN ${type} KEY-----`)) throw new Error(`Expected PKCS#8 PRIVATE KEY or SPKI PUBLIC KEY PEM, or JWK / JWKS (${type}).`);
   return crypto.subtle.importKey(usage === 'sign' ? 'pkcs8' : 'spki', pemBytes(material), settings.import, extractable, [usage]);
 }
-export async function signToken(header, payload, material) {
+export async function signToken(header, payload, material, options = {}) {
   if (header.b64 === false || header.crit?.length) throw new Error('Custom signing does not accept b64=false or unimplemented crit extensions.');
   const settings = config(header.alg);
   const input = `${encode(header)}.${encode(payload)}`;
-  if (header.alg.startsWith('HS') && !material.trim().startsWith('{')) return `${input}.${await hmac(input, material, settings.hash)}`;
-  const key = await importMaterial(header, material, 'sign');
+  if (header.alg.startsWith('HS') && !isJwkMaterial(header, material, options.format)) return `${input}.${await hmac(input, material, settings.hash)}`;
+  const key = await importMaterial(header, material, 'sign', false, options.format);
   return `${input}.${b64url(await crypto.subtle.sign(settings.sign, key, bytes(input)))}`;
 }
-export async function verifyToken(token, material) {
+export async function verifyToken(token, material, options = {}) {
   const { header, payload, segments } = parseJwt(token);
   if (header.b64 === false || header.crit?.length) throw new Error('Verification does not accept b64=false or unimplemented crit extensions.');
   const settings = config(header.alg);
   const input = segments.slice(0, 2).join('.');
   let valid;
-  if (header.alg.startsWith('HS') && !material.trim().startsWith('{')) {
+  if (header.alg.startsWith('HS') && !isJwkMaterial(header, material, options.format)) {
     const expected = unbase64(await hmac(input, material, settings.hash));
     const actual = unbase64(segments[2]);
     let difference = expected.length ^ actual.length;
     for (let i = 0; i < expected.length; i++) difference |= expected[i] ^ (actual[i] ?? 0);
     valid = difference === 0;
   } else {
-    const key = await importMaterial(header, material, 'verify');
+    const key = await importMaterial(header, material, 'verify', false, options.format);
     valid = await crypto.subtle.verify(settings.sign, key, unbase64(segments[2]), bytes(input));
   }
   const now = Date.now() / 1000;
@@ -83,7 +88,7 @@ export async function checkDictionary(token, words, progress = () => {}) {
   const candidates = [...new Set(['', ...words])];
   if (candidates.length > 10001) throw new Error('Dictionary is limited to 10,000 supplied candidates.');
   for (let index = 0; index < candidates.length; index++) {
-    if ((await verifyToken(token, candidates[index])).valid) return { found: true, secret: candidates[index], checked: index + 1, total: candidates.length };
+    if ((await verifyToken(token, candidates[index], { format: 'raw' })).valid) return { found: true, secret: candidates[index], checked: index + 1, total: candidates.length };
     if (index % 50 === 0) progress({ checked: index + 1, total: candidates.length });
   }
   return { found: false, checked: candidates.length, total: candidates.length };

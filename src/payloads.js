@@ -127,7 +127,7 @@ export async function generatePayloads(input, options = {}) {
         let header;
         try { header = options.customHeader?.trim() ? JSON.parse(options.customHeader) : h; } catch { throw new Error('Custom Header must be valid JSON.'); }
         if (!header || Array.isArray(header) || typeof header !== 'object') throw new Error('Custom Header must be a JSON object.');
-        add('custom', 'Custom Header / Payload · supplied signing key', await signToken(header, payload, options.signingKey ?? ''));
+        add('custom', 'Custom Header / Payload · supplied signing key', await signToken(header, payload, options.signingKey ?? '', { format: options.signingFormat }));
       }
     }
   }
@@ -151,7 +151,7 @@ export async function generatePayloads(input, options = {}) {
       if (selected.has('none')) add('fuzz', `${label} · none`, assemble({ ...header, alg: 'none' }, payload));
       if (selected.has('hmac')) add('fuzz', `${label} · HS256 空密钥`, await signHmac({ ...header, alg: 'HS256' }, payload, ''));
       if (options.signWithKey) {
-        try { add('fuzz', `${label} · supplied key`, await signToken(header, payload, options.signingKey ?? '')); }
+        try { add('fuzz', `${label} · supplied key`, await signToken(header, payload, options.signingKey ?? '', { format: options.signingFormat })); }
         catch (error) { warnings.push(`${label}: ${error.message}`); }
       }
     }

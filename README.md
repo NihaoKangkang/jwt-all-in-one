@@ -48,6 +48,8 @@ Default delay: 0.2 seconds; adjustable from 0 to 60. Default timeout: 30 seconds
 
 Some algorithms depend on browser Web Crypto support; unsupported operations return an error. Verification reports signature and numeric exp/nbf timing only, not issuer/audience trust or application authorization. Some mutation payloads intentionally retain an invalid original signature to test whether the target ignores verification.
 
+For HMAC, automatic key input always treats the text as a literal secret, even when it starts with `{` or looks like JSON. Select **JWK / JWKS JSON** explicitly to import an HMAC JWK. Dictionary candidates are always literal secrets and are never parsed as JWK.
+
 ## Privacy and public fixtures
 
 Runtime code has no third-party dependencies, CDN, analytics, token storage, or backend. Tokens, keys, and requests stay in page memory. CSP `connect-src 'none'` blocks application fetch/XHR connections; static page/module/Worker loading still accesses the hosting site. Target requests only occur after you execute the copied terminal command. The command contains your request and credentials: keep it and its results local.
