@@ -204,9 +204,11 @@ $('check-dictionary').addEventListener('click', () => {
     parseJwt($('jwt').value);
     const words = $('dictionary').value.split(/\r?\n/).filter(value => value.length);
     if (words.length > 10000) throw new Error('Dictionary is limited to 10,000 supplied candidates.');
-    auditWorker = new Worker(new URL('./audit-worker.js', import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL('./audit-worker.js', import.meta.url), { type: 'module' });
+    auditWorker = worker;
     $('check-dictionary').disabled = true; $('cancel-dictionary').disabled = false;
-    auditWorker.onmessage = ({ data }) => {
+    worker.onmessage = ({ data }) => {
+      if (worker !== auditWorker) return;
       if (data.progress) $('dictionary-result').textContent = `已检查 ${data.progress.checked} / ${data.progress.total}`;
       if (data.result) {
         const { found, secret, checked } = data.result;
@@ -215,8 +217,11 @@ $('check-dictionary').addEventListener('click', () => {
       if (data.error) $('dictionary-result').textContent = data.error;
       if (data.result || data.error) stopDictionary();
     };
-    auditWorker.onerror = () => { $('dictionary-result').textContent = 'Worker unavailable. Use a modern browser over HTTPS or localhost.'; stopDictionary(); };
-    auditWorker.postMessage({ token: $('jwt').value, words });
+    worker.onerror = () => {
+      if (worker !== auditWorker) return;
+      $('dictionary-result').textContent = 'Worker unavailable. Use a modern browser over HTTPS or localhost.'; stopDictionary();
+    };
+    worker.postMessage({ token: $('jwt').value, words });
   } catch (error) { $('dictionary-result').textContent = error.message; stopDictionary(); }
 });
 $('keygen').addEventListener('click', async () => {
