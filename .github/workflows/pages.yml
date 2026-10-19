@@ -38,8 +38,13 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.https.outputs.url }}
     steps:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Link to HTTPS site
+        id: https
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: echo "url=${PAGE_URL/http:/https:}" >> "$GITHUB_OUTPUT"

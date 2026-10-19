@@ -2,6 +2,14 @@ import { encode, parseJwt, signHmac } from './jwt.js';
 import { CATEGORIES, generatePayloads } from './payloads.js';
 import { generateRunner, manifestTsv } from './curl.js';
 
+// GitHub account-level custom domains may redirect project URLs to HTTP.
+// Web Crypto needs a secure context; upgrade before the user enters credentials.
+if (location.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+  const secureUrl = new URL(location.href);
+  secureUrl.protocol = 'https:';
+  location.replace(secureUrl.href);
+}
+
 const $ = id => document.getElementById(id);
 let rows = [], script = '', version = 0, busy = false, toastTimer;
 const fields = ['jwt', 'curl', 'public-key', 'jwks-url', 'certificate-url', 'secrets', 'custom-payload'];

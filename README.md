@@ -2,7 +2,7 @@
 
 纯前端 JWT 安全测试工作台。输入三段式 JWT 和带 `$JWT_HERE` 占位符的 curl 请求，在浏览器本地生成测试载荷，导出 TXT、说明表和 Bash 脚本。
 
-**在线地址：<https://NihaoKangkang.github.io/jwt-all-in-one/>**（首次需启用 GitHub Pages）
+**在线地址：<https://www.kyiwong.com/jwt-all-in-one/>**。本项目继承账号已有 Pages 自定义域名；GitHub 默认地址会重定向到该域名。应用自动升级非本机的 HTTP 访问为 HTTPS，以满足 Web Crypto 要求。
 
 ## 使用
 
