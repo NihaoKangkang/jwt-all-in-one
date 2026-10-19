@@ -1,8 +1,8 @@
-import { parseJwt, signHmac } from './jwt.js';
-import { CATEGORIES, generatePayloads } from './payloads.js';
-import { generateCommand, manifestTsv } from './curl.js';
-import { generateKeyPair, publicKeyFromJwks, verifyToken } from './crypto-tools.js';
-import { language, observeTranslations, switchLanguage, translate } from './i18n.js';
+import { parseJwt, signHmac } from './jwt.js?v=1.1.1';
+import { CATEGORIES, generatePayloads } from './payloads.js?v=1.1.1';
+import { generateCommand, manifestTsv } from './curl.js?v=1.1.1';
+import { generateKeyPair, publicKeyFromJwks, verifyToken } from './crypto-tools.js?v=1.1.1';
+import { language, observeTranslations, switchLanguage, translate } from './i18n.js?v=1.1.1';
 
 // GitHub account-level custom domains may redirect project URLs to HTTP.
 // Web Crypto needs a secure context; upgrade before the user enters credentials.
@@ -48,8 +48,12 @@ for (const category of CATEGORIES) {
 }
 // Bundled key material is imported as a module; generating payloads never fetches anything.
 const publicBase = new URL('../keys/', import.meta.url);
-$('jwks-url').value = new URL('jwks.json', publicBase).href;
-$('certificate-url').value = new URL('rsa-a-certificate.pem', publicBase).href;
+const assetVersion = new URL(import.meta.url).searchParams.get('v');
+for (const [id, name] of [['jwks-url', 'jwks.json'], ['certificate-url', 'rsa-a-certificate.pem']]) {
+  const url = new URL(name, publicBase);
+  if (assetVersion) url.searchParams.set('v', assetVersion);
+  $(id).value = url.href;
+}
 
 function decode() {
   try {
@@ -204,7 +208,7 @@ $('check-dictionary').addEventListener('click', () => {
     parseJwt($('jwt').value);
     const words = $('dictionary').value.split(/\r?\n/).filter(value => value.length);
     if (words.length > 10000) throw new Error('Dictionary is limited to 10,000 supplied candidates.');
-    const worker = new Worker(new URL('./audit-worker.js', import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL('./audit-worker.js?v=1.1.1', import.meta.url), { type: 'module' });
     auditWorker = worker;
     $('check-dictionary').disabled = true; $('cancel-dictionary').disabled = false;
     worker.onmessage = ({ data }) => {

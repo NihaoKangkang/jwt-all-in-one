@@ -1,6 +1,6 @@
-import { assemble, b64url, parseJwt, pemBytes, signHmac, signKey } from './jwt.js';
-import { TEST_KEYS } from './keys.js';
-import { signToken } from './crypto-tools.js';
+import { assemble, b64url, parseJwt, pemBytes, signHmac, signKey } from './jwt.js?v=1.1.1';
+import { TEST_KEYS } from './keys.js?v=1.1.1';
+import { signToken } from './crypto-tools.js?v=1.1.1';
 
 export const CATEGORIES = [
   { id: 'baseline', title: '原始请求基线', tag: 'CONTROL', detail: '保留原始 JWT，用响应对照每个测试。' },

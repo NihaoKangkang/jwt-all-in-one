@@ -7,9 +7,9 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="color-scheme" content="light">
   <title>JWT All in One · 安全测试工作台</title>
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./src/style.css">
-  <script type="module" src="./src/app.js"></script>
+  <link rel="icon" href="./favicon.svg?v=1.1.1" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/style.css?v=1.1.1">
+  <script type="module" src="./src/app.js?v=1.1.1"></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -22,7 +22,7 @@
       <div class="local-indicator"><span class="dot"></span> LOCAL PROCESSING</div>
       <p>你的 Token 留在浏览器。<br>无后端，无上传，无追踪。</p>
       <a href="https://github.com/NihaoKangkang/jwt-all-in-one" target="_blank" rel="noreferrer">GitHub 仓库 ↗</a>
-      <span class="version">v1.1.0 / OPEN SOURCE</span>
+      <span class="version">v1.1.1 / OPEN SOURCE</span>
     </div>
   </aside>
   <main id="workbench">
@@ -85,7 +85,7 @@
           <div class="note-card"><span>i</span><div><strong>结果需要结合业务判断</strong><p>JWT 结构可解码不等于签名有效；返回 200 也不等于绕过。与原始请求对照，确认身份、权限和实际业务响应。公开测试私钥仅供实验。</p></div></div>
         </div>
       </div>
-      <footer><span>JWT ALL IN ONE <span class="footer-divider">/</span> 本地构造，明确验证。</span><a href="./keys/README.md" target="_blank" rel="noreferrer">公开测试密钥 ↗</a></footer>
+      <footer><span>JWT ALL IN ONE <span class="footer-divider">/</span> 本地构造，明确验证。</span><a href="./keys/README.md?v=1.1.1" target="_blank" rel="noreferrer">公开测试密钥 ↗</a></footer>
     </div>
   </main>
   <div id="toast" class="toast" role="status" hidden></div>

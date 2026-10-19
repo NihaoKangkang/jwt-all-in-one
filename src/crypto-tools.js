@@ -1,4 +1,4 @@
-import { b64url, bytes, encode, hmac, parseJwt, pemBytes, unbase64 } from './jwt.js';
+import { b64url, bytes, encode, hmac, parseJwt, pemBytes, unbase64 } from './jwt.js?v=1.1.1';
 
 export const ALGORITHMS = ['HS256', 'HS384', 'HS512', 'RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512', 'EdDSA'];
 function config(alg) {

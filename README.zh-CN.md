@@ -69,6 +69,8 @@ npm test
 
 测试包含 13 种签名算法的独立 Node crypto 验签、密钥一致性、字典、Fuzz、类别过滤，以及对本地 HTTP 服务真实执行复制命令。
 
+页面入口、模块间导入、Worker、CSS 和默认公开密钥 URL 使用统一发布版本参数，避免 CDN 缓存混用。修改发布版本时更新 package.json 并运行 `npm run version-assets`；`npm test` 会检查版本标记一致性。
+
 工作流在 PR 运行测试，推送 main 后测试并部署。Pages Source 选择 GitHub Actions；发布文件仅含页面、favicon、src/ 和 keys/，相对路径支持项目子目录。
 
 独立参考 [jwt_tool](https://github.com/ticarpi/jwt_tool) 思路实现，未复制 GPL 源码；不是完整 CLI 兼容实现。MIT License。仅用于已获授权的环境。

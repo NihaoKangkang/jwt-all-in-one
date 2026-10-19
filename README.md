@@ -76,6 +76,8 @@ npm test
 
 Tests independently verify all 13 signing algorithms with Node crypto, fixtures and JWKS consistency, dictionary results, category filtering, fuzzing, and the copied command's real execution against a local HTTP server with headers, cookies, URLs, bodies, failures, and saved results.
 
+Asset URLs are pinned to the package release version, including transitive module imports, Worker code, CSS, and public key URLs. When changing a release, bump `package.json` and run `npm run version-assets`; `npm test` rejects inconsistent asset versions. This avoids mixing cached modules from different releases.
+
 [Pages workflow](./.github/workflows/pages.yml): PRs test; pushes to `main` test and deploy the static site. Pages Source must be **GitHub Actions**. Published files are only the HTML, favicon, `src/`, and `keys/`. Relative asset paths support project subdirectories.
 
 Independently implemented with inspiration from [jwt_tool](https://github.com/ticarpi/jwt_tool); no GPL implementation copied. This is not a claim of complete CLI compatibility. MIT License. Use only in environments you are authorized to test.
