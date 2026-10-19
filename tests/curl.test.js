@@ -17,6 +17,7 @@ test('curl parser rejects command chains, unresolved variables, and output/confi
   for (const template of [
     'wget https://example.test/$JWT_HERE', 'curl https://example.test', "curl 'unclosed",
     'curl https://example.test/$JWT_HERE; rm -rf /', 'curl https://example.test/$JWT_HERE | sh',
+    'curl https://example.test/$JWT_HERE\necho extra-command',
     'curl https://example.test/$JWT_HERE -K config', 'curl https://example.test/$JWT_HERE --next https://example.test',
     'curl https://example.test/$JWT_HERE -o out', 'curl https://example.test/$JWT_HERE -svoout',
     'curl https://example.test/$JWT_HERE -H "X: $SECRET"', 'curl https://example.test/$JWT_HERE -H "X: $(whoami)"',

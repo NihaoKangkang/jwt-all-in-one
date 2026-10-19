@@ -20,6 +20,9 @@ export function parseCurl(source) {
       continue;
     }
     if (char === '"' || char === "'") { quote = char; started = true; continue; }
+    if ((char === '\n' || char === '\r') && (args.length || started) && source.slice(i + 1).trim()) {
+      throw new Error('多行 curl 请使用反斜杠续行；不支持多条命令。');
+    }
     if (/\s/.test(char)) {
       if (started) { args.push(value); value = ''; started = false; }
       continue;

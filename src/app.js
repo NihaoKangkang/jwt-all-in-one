@@ -77,7 +77,7 @@ function renderRows() {
   list.replaceChildren();
   if (!rows.length) {
     const empty = make('div', 'empty-state');
-    empty.append(make('div', 'empty-icon', '{ · }'), make('h3', '', '你的测试，从一个 Token 开始'), make('p', '', '输入 JWT，选择测试类别，生成后在这里查看。'), make('span', '', 'INPUT → MUTATE → EXPORT'));
+    empty.append(make('div', 'empty-icon', '{·}'), make('h3', '', '你的测试，从一个 Token 开始'), make('p', '', '输入 JWT，选择测试类别，生成后在这里查看。'), make('span', '', 'INPUT → MUTATE → EXPORT'));
     list.append(empty); return;
   }
   const visible = rows.filter(row => `${row.id} ${row.category} ${row.label} ${row.token}`.toLowerCase().includes(filter));
