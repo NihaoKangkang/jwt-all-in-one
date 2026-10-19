@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="纯前端 JWT 安全测试工作台：生成测试载荷、导出文件与批量 curl 脚本。">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="color-scheme" content="light">
   <title>JWT All in One · 安全测试工作台</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -22,11 +22,11 @@
       <div class="local-indicator"><span class="dot"></span> LOCAL PROCESSING</div>
       <p>你的 Token 留在浏览器。<br>无后端，无上传，无追踪。</p>
       <a href="https://github.com/NihaoKangkang/jwt-all-in-one" target="_blank" rel="noreferrer">GitHub 仓库 ↗</a>
-      <span class="version">v1.0.0 / OPEN SOURCE</span>
+      <span class="version">v1.1.0 / OPEN SOURCE</span>
     </div>
   </aside>
   <main id="workbench">
-    <header class="topbar"><span>工具 / <strong>JWT 测试工作台</strong></span><span class="topbar-tag"><span class="dot"></span> 100% 浏览器本地运行</span></header>
+    <header class="topbar"><span>工具 / <strong>JWT 测试工作台</strong></span><div class="topbar-actions"><span class="topbar-tag"><span class="dot"></span> 100% 浏览器本地运行</span><button id="language" type="button" class="secondary-button" aria-label="Switch to English">EN</button></div></header>
     <div class="page-content">
       <div class="page-heading"><div><div class="eyebrow">TOKEN SECURITY WORKBENCH</div><h1>一个 JWT，多种测试可能<span>。</span></h1><p>解码、构造、导出。把重复的准备工作，交给浏览器。</p></div><span class="outline-tag">FRONTEND ONLY ↗</span></div>
       <div class="workflow"><span class="current"><b>01</b> 输入凭证</span><i>→</i><span><b>02</b> 选择测试</span><i>→</i><span><b>03</b> 导出并执行</span><span class="workflow-note">仅用于你拥有权限的安全测试</span></div>
@@ -38,7 +38,7 @@
             <textarea id="jwt" class="code-input jwt-input" spellcheck="false" autocomplete="off" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMifQ.…"></textarea>
             <div id="jwt-status" class="field-hint" role="status">支持三段式 JWS · 自动解析 Header 与 Payload</div>
             <div class="decode-grid"><div><div class="code-label"><span class="pink-dot"></span> HEADER</div><pre id="decoded-header">等待输入…</pre></div><div><div class="code-label"><span class="blue-dot"></span> PAYLOAD</div><pre id="decoded-payload">等待输入…</pre></div></div>
-            <div class="subsection"><label for="curl" class="field-label">完整 curl 请求 <span>脚本导出必填</span></label><p class="field-hint">粘贴从浏览器复制的 curl，将 JWT 替换为 <code>$JWT_HERE</code>。支持 Header、Cookie、URL 和请求体。</p><textarea id="curl" class="code-input" rows="4" spellcheck="false" autocomplete="off" placeholder="curl 'https://example.com/api/me' \
+            <div class="subsection"><label for="curl" class="field-label">完整 curl 请求 <span>复制命令必填</span></label><p class="field-hint">粘贴从浏览器复制的 curl，将 JWT 替换为 <code>$JWT_HERE</code>。支持 Header、Cookie、URL 和请求体。</p><textarea id="curl" class="code-input" rows="4" spellcheck="false" autocomplete="off" placeholder="curl 'https://example.com/api/me' \
   -H 'Authorization: Bearer $JWT_HERE'"></textarea><p class="field-hint">引号中的占位符也会正确替换；支持单条 Bash / POSIX 风格 curl。</p></div>
           </section>
           <section class="panel" id="test-options">
@@ -50,8 +50,19 @@
               <label for="jwks-url" class="field-label">公开 JWKS URL</label><input id="jwks-url" type="url" spellcheck="false"><label for="certificate-url" class="field-label">公开 X.509 证书 URL</label><input id="certificate-url" type="url" spellcheck="false"><p class="field-hint">默认指向本项目公开测试密钥。自定义 URL 需托管相同公钥 / 证书。</p>
               <label for="secrets" class="field-label">附加弱密钥字典 <span>每行一个，最多 100 项</span></label><textarea id="secrets" class="code-input" rows="3" spellcheck="false" placeholder="your-test-secret"></textarea>
               <label for="custom-payload" class="field-label">自定义 Payload JSON</label><textarea id="custom-payload" class="code-input" rows="6" spellcheck="false" placeholder='{"sub":"admin","role":"admin"}'></textarea><p class="field-hint">自定义声明可组合已勾选的 none / HMAC / JWK 测试。</p>
+              <label for="custom-header" class="field-label">自定义 Header JSON <span>留空使用原始 Header</span></label><textarea id="custom-header" class="code-input" rows="3" spellcheck="false" placeholder='{"alg":"RS256","typ":"JWT"}'></textarea>
+              <label class="check-label"><input id="sign-with-key" type="checkbox">使用下面的密钥对自定义内容签名</label><label for="signing-key" class="field-label">签名密钥 <span>HMAC secret / PKCS#8 PEM / JWK</span></label><textarea id="signing-key" class="code-input" rows="4" spellcheck="false" autocomplete="off"></textarea><p class="field-hint">HS / RS / PS / ES / EdDSA。勾选后，空 HMAC 密钥也会用于签名。密钥只留在页面内存。</p>
+              <div class="config-grid"><div><label for="delay" class="field-label">请求间隔（秒）</label><input id="delay" type="number" min="0" max="60" step="0.1" value="0.2"></div><div><label for="timeout" class="field-label">超时（秒）</label><input id="timeout" type="number" min="1" max="300" value="30"></div></div>
+              <label for="canary" class="field-label">响应关键字 <span>可选，按原文匹配</span></label><input id="canary" type="text" placeholder="Welcome, admin" autocomplete="off">
+              <label for="fuzz-part" class="field-label">Fuzz 字段位置</label><select id="fuzz-part"><option value="payload">Payload</option><option value="header">Header</option></select><label for="fuzz-field" class="field-label">Fuzz 字段路径 <span>例如 role 或 user.role</span></label><input id="fuzz-field" type="text" placeholder="role"><label for="fuzz-values" class="field-label">Fuzz 值 <span>每行 JSON 值或字符串，最多 50 项</span></label><textarea id="fuzz-values" class="code-input" rows="4" spellcheck="false" placeholder='"admin"&#10;null&#10;true&#10;0'></textarea>
             </div></details>
-            <div class="generate-bar"><span id="selection-count">12 个类别已选择</span><button type="button" id="generate" class="primary-button">生成测试载荷 <span>→</span></button></div>
+            <div class="generate-bar"><span id="selection-count">13 个类别已选择</span><button type="button" id="generate" class="primary-button">生成测试载荷 <span>→</span></button></div>
+          </section>
+          <section class="panel" id="crypto-lab">
+            <div class="panel-heading"><h2>本地密码工具</h2><span class="small-label">WEB CRYPTO</span></div>
+            <details class="tool-section"><summary>验证原始 JWT 签名</summary><label for="verification-key" class="field-label">验证密钥 <span>HMAC secret / SPKI PEM / JWK / JWKS</span></label><textarea id="verification-key" class="code-input" rows="4" spellcheck="false" autocomplete="off"></textarea><p class="field-hint">仅检查签名与 exp / nbf；不验证业务权限或 issuer / audience。空输入可检查空 HMAC 密钥。</p><div class="tool-buttons"><button id="verify" class="secondary-button" type="button">本地验签</button><button id="reconstruct" class="secondary-button" type="button">导出公钥 PEM</button></div><p id="verification-result" class="field-hint" role="status"></p></details>
+            <details class="tool-section"><summary>HMAC 离线字典检查</summary><label for="dictionary" class="field-label">候选密钥 <span>每行一个，最多 10,000 项</span></label><textarea id="dictionary" class="code-input" rows="5" spellcheck="false" autocomplete="off" placeholder="secret&#10;password&#10;jwt-lab-example-secret"></textarea><p class="field-hint">在 Web Worker 内检查原始签名，可随时取消；总会额外检查空密钥。此处不生成额外请求。</p><div class="tool-buttons"><button id="check-dictionary" class="secondary-button" type="button">检查字典</button><button id="cancel-dictionary" class="secondary-button" type="button" disabled>取消检查</button></div><p id="dictionary-result" class="field-hint" role="status"></p></details>
+            <details class="tool-section"><summary>生成本地密钥对</summary><label for="key-algorithm" class="field-label">密钥算法</label><select id="key-algorithm"><option>RS256</option><option>PS256</option><option>ES256</option><option>ES384</option><option>ES512</option><option>EdDSA</option></select><div class="tool-buttons"><button id="keygen" class="secondary-button" type="button">生成密钥对</button><button id="save-public" class="secondary-button" type="button" disabled>↓ public.pem</button><button id="save-private" class="secondary-button" type="button" disabled>↓ private.pem</button><button id="save-jwks" class="secondary-button" type="button" disabled>↓ JWKS</button></div><p id="keygen-result" class="field-hint" role="status"></p></details>
           </section>
         </div>
         <div class="output-column">
@@ -64,11 +75,12 @@
           </section>
           <section class="panel" id="export">
             <div class="panel-heading"><h2>导出与执行</h2><span class="small-label">BASH + CURL</span></div>
-            <p class="panel-intro">下载文件放到同一目录，在终端执行。每条请求都会输出对应 JWT、状态、响应头和正文。</p>
-            <div class="export-buttons"><button id="download-txt" disabled type="button" class="secondary-button">↓ payloads.txt</button><button id="download-tsv" disabled type="button" class="secondary-button">↓ 载荷说明.tsv</button><button id="download-sh" disabled type="button" class="secondary-button">↓ jwt-runner.sh</button></div>
-            <div class="terminal"><div><span class="terminal-dots">● ● ●</span><span>terminal</span><button id="copy-command" type="button" class="text-button" disabled>复制</button></div><code>bash jwt-runner.sh payloads.txt</code></div>
-            <p class="field-hint">串行执行 · 每次间隔 0.2 秒 · 单次超时 30 秒<br>结果保存到 jwt-results.*/，包含逐条响应和 summary.tsv。</p>
-            <details class="script-details"><summary>查看生成的完整脚本</summary><pre id="script-preview">生成载荷并填写 curl 后，在这里预览脚本。</pre><button id="copy-script" class="text-button" type="button" disabled>复制完整脚本</button></details>
+            <p class="panel-intro">一键复制完整命令，直接粘贴到终端执行。已内嵌全部载荷，不需要下载任何文件。</p>
+            <div class="tool-buttons"><button id="copy-command" disabled type="button" class="primary-button">复制完整执行命令 →</button><button id="copy-payloads" disabled type="button" class="secondary-button">复制全部 JWT</button></div>
+            <div class="terminal"><div><span class="terminal-dots">● ● ●</span><span>terminal · bash + curl</span></div><code id="command-hint">生成后，点击上方按钮复制完整命令</code></div>
+            <p class="field-hint">串行执行 · 默认间隔 0.2 秒 · 默认超时 30 秒<br>逐条输出 JWT、HTTP 状态、响应头和正文，并保存 summary.tsv、关键字匹配与基线正文对比。</p>
+            <div class="export-buttons"><button id="download-txt" disabled type="button" class="secondary-button">↓ payloads.txt</button><button id="download-tsv" disabled type="button" class="secondary-button">↓ 载荷说明.tsv</button></div>
+            <details class="script-details"><summary>预览可直接执行的完整命令</summary><pre id="script-preview">生成载荷并填写 curl 后，在这里预览命令。</pre><button id="copy-script" class="text-button" type="button" disabled>复制完整命令</button></details>
           </section>
           <div class="note-card"><span>i</span><div><strong>结果需要结合业务判断</strong><p>JWT 结构可解码不等于签名有效；返回 200 也不等于绕过。与原始请求对照，确认身份、权限和实际业务响应。公开测试私钥仅供实验。</p></div></div>
         </div>

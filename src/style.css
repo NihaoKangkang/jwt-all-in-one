@@ -1009,3 +1009,14 @@ footer a {
     margin:0 5px;
   }
 }
+.topbar-actions{display:flex;align-items:center;gap:15px}
+.topbar-actions #language{min-width:38px}
+.check-label{display:flex;align-items:center;gap:8px;margin:16px 0;font-size:11px}
+.check-label input{width:14px;height:14px;accent-color:var(--green)}
+.config-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tool-section{padding:12px 0;border-top:1px solid var(--line)}
+.tool-section summary{cursor:pointer;font-size:12px;color:var(--green)}
+.tool-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.tool-section select{width:100%;padding:10px;background:#fbfcfc;color:var(--ink);border:1px solid var(--line);border-radius:5px}
+#command-hint{white-space:normal;overflow-wrap:anywhere}
+.advanced select{width:100%;padding:10px;background:#fbfcfc;color:var(--ink);border:1px solid var(--line);border-radius:5px}

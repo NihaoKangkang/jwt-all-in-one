@@ -1,6 +1,8 @@
-import { encode, parseJwt, signHmac } from './jwt.js';
+import { parseJwt, signHmac } from './jwt.js';
 import { CATEGORIES, generatePayloads } from './payloads.js';
-import { generateRunner, manifestTsv } from './curl.js';
+import { generateCommand, manifestTsv } from './curl.js';
+import { generateKeyPair, publicKeyFromJwks, verifyToken } from './crypto-tools.js';
+import { language, observeTranslations, switchLanguage, translate } from './i18n.js';
 
 // GitHub account-level custom domains may redirect project URLs to HTTP.
 // Web Crypto needs a secure context; upgrade before the user enters credentials.
@@ -11,8 +13,9 @@ if (location.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includ
 }
 
 const $ = id => document.getElementById(id);
-let rows = [], script = '', version = 0, busy = false, toastTimer;
-const fields = ['jwt', 'curl', 'public-key', 'jwks-url', 'certificate-url', 'secrets', 'custom-payload'];
+let rows = [], script = '', version = 0, busy = false, toastTimer, auditWorker, generatedKeys;
+const fields = ['jwt', 'curl', 'public-key', 'jwks-url', 'certificate-url', 'secrets', 'custom-payload', 'custom-header', 'signing-key', 'delay', 'timeout', 'canary', 'fuzz-field', 'fuzz-values'];
+const translatedRows = () => rows.map(row => ({ ...row, label: translate(row.label, language), note: translate(row.note, language) }));
 const make = (tag, className, text) => {
   const element = document.createElement(tag);
   element.className = className;
@@ -56,18 +59,19 @@ function decode() {
     $('jwt-status').textContent = `✓ 结构可解码 · ${parsed.header.alg} · 签名尚未验证`;
     $('jwt-status').className = 'field-hint valid';
   } catch (error) {
-    $('decoded-header').textContent = '等待有效 JWT…'; $('decoded-payload').textContent = '等待有效 JWT…';
+    $('decoded-header').textContent = translate('等待有效 JWT…', language); $('decoded-payload').textContent = translate('等待有效 JWT…', language);
     $('jwt-status').textContent = $('jwt').value.trim() ? error.message : '支持三段式 JWS · 自动解析 Header 与 Payload';
     $('jwt-status').className = $('jwt').value.trim() ? 'field-hint invalid' : 'field-hint';
   }
 }
 function invalidate() {
   version++; rows = []; script = '';
-  for (const id of ['download-txt', 'download-tsv', 'download-sh', 'copy-script', 'copy-command']) $(id).disabled = true;
+  for (const id of ['download-txt', 'download-tsv', 'copy-payloads', 'copy-script', 'copy-command']) $(id).disabled = true;
   $('result-status').textContent = '等待生成'; $('result-status').className = 'status-badge';
   $('payload-count').textContent = '00'; $('category-count').textContent = '00';
   $('messages').replaceChildren();
-  $('script-preview').textContent = '输入或配置已更新，请重新生成载荷。';
+  $('script-preview').textContent = translate('输入或配置已更新，请重新生成载荷。', language);
+  $('command-hint').textContent = translate('生成后，点击上方按钮复制完整命令', language);
   $('selection-count').textContent = `${selected().length} 个类别已选择`;
   renderRows(); decode();
 }
@@ -94,6 +98,11 @@ function renderRows() {
 }
 function message(text, error = false) { $('messages').append(make('div', error ? 'message error' : 'message', text)); }
 for (const id of fields) $(id).addEventListener('input', invalidate);
+$('sign-with-key').addEventListener('change', invalidate);
+$('fuzz-part').addEventListener('change', invalidate);
+$('jwt').addEventListener('input', () => { stopDictionary(); $('verification-result').textContent = ''; $('dictionary-result').textContent = ''; });
+$('verification-key').addEventListener('input', () => { $('verification-result').textContent = ''; });
+$('dictionary').addEventListener('input', () => { stopDictionary(); $('dictionary-result').textContent = ''; });
 $('filter').addEventListener('input', renderRows);
 for (const [id, checked] of [['select-all', true], ['select-none', false]]) $(id).addEventListener('click', () => {
   document.querySelectorAll('#categories input').forEach(input => { input.checked = checked; }); invalidate();
@@ -118,19 +127,19 @@ $('generate').addEventListener('click', async () => {
     const result = await generatePayloads($('jwt').value, {
       categories: selected(), targetPublicKey: $('public-key').value, jwksUrl: $('jwks-url').value,
       certificateUrl: $('certificate-url').value, secrets: $('secrets').value, customPayload: $('custom-payload').value,
+      customHeader: $('custom-header').value, signingKey: $('signing-key').value, signWithKey: $('sign-with-key').checked,
+      fuzzPart: $('fuzz-part').value, fuzzField: $('fuzz-field').value, fuzzValues: $('fuzz-values').value,
     });
     if (generation !== version) return;
     rows = result.rows;
     result.warnings.forEach(warning => message(warning));
     if (rows.length) {
-      $('download-txt').disabled = false; $('download-tsv').disabled = false;
+      $('download-txt').disabled = false; $('download-tsv').disabled = false; $('copy-payloads').disabled = false;
       try {
-        script = generateRunner($('curl').value, rows);
-        $('download-sh').disabled = false; $('copy-script').disabled = false; $('copy-command').disabled = false;
-        $('script-preview').textContent = script;
+        buildCommand();
       } catch (error) {
-        message(`载荷已生成；脚本尚未生成：${error.message}`);
-        $('script-preview').textContent = error.message;
+        message(`载荷已生成；命令尚未生成：${error.message}`);
+        $('script-preview').textContent = translate(error.message, language);
       }
     }
     $('payload-count').textContent = String(rows.length).padStart(2, '0');
@@ -146,8 +155,79 @@ $('generate').addEventListener('click', async () => {
   }
 });
 $('download-txt').addEventListener('click', () => download('payloads.txt', rows.map(row => row.token).join('\n') + '\n'));
-$('download-tsv').addEventListener('click', () => download('payload-manifest.tsv', manifestTsv(rows), 'text/tab-separated-values;charset=utf-8'));
-$('download-sh').addEventListener('click', () => download('jwt-runner.sh', script, 'text/x-shellscript;charset=utf-8'));
-$('copy-command').addEventListener('click', () => copy('bash jwt-runner.sh payloads.txt'));
+$('download-tsv').addEventListener('click', () => download('payload-manifest.tsv', manifestTsv(translatedRows()), 'text/tab-separated-values;charset=utf-8'));
+$('copy-command').addEventListener('click', () => copy(script));
+$('copy-payloads').addEventListener('click', () => copy(rows.map(row => row.token).join('\n')));
 $('copy-script').addEventListener('click', () => copy(script));
+function buildCommand() {
+  script = generateCommand($('curl').value, translatedRows(), { delay: $('delay').value, timeout: $('timeout').value, canary: $('canary').value });
+  $('copy-script').disabled = false; $('copy-command').disabled = false;
+  $('script-preview').textContent = script;
+  $('command-hint').textContent = `${rows.length} JWTs → for loop → curl → summary.tsv`;
+}
+$('language').addEventListener('click', () => {
+  switchLanguage(); decode();
+  if (script) buildCommand();
+  else {
+    $('script-preview').textContent = translate('生成载荷并填写 curl 后，在这里预览命令。', language);
+    $('command-hint').textContent = translate('生成后，点击上方按钮复制完整命令', language);
+  }
+});
+$('verify').addEventListener('click', async () => {
+  const token = $('jwt').value, material = $('verification-key').value;
+  try {
+    const result = await verifyToken(token, material);
+    if ($('jwt').value !== token || $('verification-key').value !== material) return;
+    $('verification-result').textContent = `${result.valid ? '签名有效' : '签名无效'} · ${result.invalidTimeClaims ? '时间声明无效' : result.expired ? '已过期' : result.notYetValid ? '尚未生效' : '时间范围有效'}`;
+  } catch (error) { $('verification-result').textContent = error.message; }
+});
+$('reconstruct').addEventListener('click', async () => {
+  try {
+    const header = parseJwt($('jwt').value).header;
+    download('reconstructed-public.pem', await publicKeyFromJwks($('verification-key').value, header));
+  } catch (error) { $('verification-result').textContent = error.message; }
+});
+function stopDictionary() {
+  auditWorker?.terminate(); auditWorker = null;
+  $('check-dictionary').disabled = false; $('cancel-dictionary').disabled = true;
+}
+$('cancel-dictionary').addEventListener('click', () => { stopDictionary(); $('dictionary-result').textContent = '检查已取消'; });
+$('check-dictionary').addEventListener('click', () => {
+  stopDictionary();
+  $('dictionary-result').textContent = '正在检查…';
+  try {
+    parseJwt($('jwt').value);
+    const words = $('dictionary').value.split(/\r?\n/).filter(value => value.length);
+    if (words.length > 10000) throw new Error('Dictionary is limited to 10,000 supplied candidates.');
+    auditWorker = new Worker(new URL('./audit-worker.js', import.meta.url), { type: 'module' });
+    $('check-dictionary').disabled = true; $('cancel-dictionary').disabled = false;
+    auditWorker.onmessage = ({ data }) => {
+      if (data.progress) $('dictionary-result').textContent = `已检查 ${data.progress.checked} / ${data.progress.total}`;
+      if (data.result) {
+        const { found, secret, checked } = data.result;
+        $('dictionary-result').replaceChildren(make('span', '', found ? '找到密钥：' : '未找到匹配密钥'), make('code', '', found ? JSON.stringify(secret) : ` (${checked})`));
+      }
+      if (data.error) $('dictionary-result').textContent = data.error;
+      if (data.result || data.error) stopDictionary();
+    };
+    auditWorker.onerror = () => { $('dictionary-result').textContent = 'Worker unavailable. Use a modern browser over HTTPS or localhost.'; stopDictionary(); };
+    auditWorker.postMessage({ token: $('jwt').value, words });
+  } catch (error) { $('dictionary-result').textContent = error.message; stopDictionary(); }
+});
+$('keygen').addEventListener('click', async () => {
+  $('keygen').disabled = true; $('keygen-result').textContent = '正在生成密钥…';
+  try {
+    generatedKeys = await generateKeyPair($('key-algorithm').value);
+    for (const id of ['save-public', 'save-private', 'save-jwks']) $(id).disabled = false;
+    $('keygen-result').textContent = '密钥对已生成，仅保存在页面内存。';
+  } catch (error) { $('keygen-result').textContent = error.message; }
+  finally { $('keygen').disabled = false; }
+});
+$('save-public').addEventListener('click', () => download('generated-public.pem', generatedKeys.publicPem));
+$('save-private').addEventListener('click', () => download('generated-private.pem', generatedKeys.privatePem));
+$('save-jwks').addEventListener('click', () => download('generated-jwks.json', JSON.stringify(generatedKeys.jwks, null, 2), 'application/json'));
 decode();
+$('script-preview').textContent = translate('生成载荷并填写 curl 后，在这里预览命令。', language);
+$('command-hint').textContent = translate('生成后，点击上方按钮复制完整命令', language);
+$('selection-count').textContent = `${selected().length} 个类别已选择`;
+observeTranslations();

